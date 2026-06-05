@@ -2,11 +2,22 @@
   <el-container v-if="!isAdminRoute">
     <el-header class="app-header">
       <div class="header-content">
-        <h2 class="logo" @click="router.push('/')">租赁平台</h2>
+        <div class="nav-left">
+          <el-button
+            v-if="showBackButton"
+            link
+            class="back-button"
+            @click="handleBack"
+          >
+            {{ backButtonText }}
+          </el-button>
+          <h2 class="logo" @click="router.push('/')">租赁平台</h2>
+        </div>
         <div class="nav-right">
           <template v-if="user">
-            <span class="username">欢迎, {{ user.nickname || user.username }}</span>
+            <span class="username">欢迎，{{ user.nickname || user.username }}</span>
             <el-button link @click="router.push('/user/profile')">个人中心</el-button>
+            <el-button link @click="router.push('/favorite/list')">我的收藏</el-button>
             <el-button link @click="router.push('/order/list')">我的订单</el-button>
             <el-button link @click="handleLogout">退出</el-button>
           </template>
@@ -28,24 +39,65 @@
 
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 const router = useRouter()
 const route = useRoute()
 
-const user = computed(() => {
-    const u = localStorage.getItem('user')
-    return u ? JSON.parse(u) : null
-})
+const readStoredUser = () => {
+    try {
+        const raw = localStorage.getItem('user')
+        return raw ? JSON.parse(raw) : null
+    } catch (error) {
+        localStorage.removeItem('user')
+        return null
+    }
+}
+
+const user = ref(readStoredUser())
 
 const isAdminRoute = computed(() => {
     return route.path.startsWith('/admin')
 })
 
-const handleLogout = () => {
+const showBackButton = computed(() => {
+    return route.path !== '/' && route.path !== '/login'
+})
+
+const isAdminUser = computed(() => {
+    return user.value?.role === 'ADMIN'
+})
+
+const backButtonText = computed(() => {
+    return isAdminUser.value ? '返回控制台' : '返回'
+})
+
+const handleBack = () => {
+    if (isAdminUser.value) {
+        router.push('/admin/dashboard')
+        return
+    }
+    if (window.history.length > 1) {
+        router.back()
+    } else {
+        router.push('/')
+    }
+}
+
+watch(
+    () => route.fullPath,
+    () => {
+        user.value = readStoredUser()
+    },
+    { immediate: true }
+)
+
+const handleLogout = async () => {
     localStorage.removeItem('user')
-    router.push('/login')
-    window.location.reload()
+    user.value = null
+    if (route.path !== '/') {
+        await router.replace('/')
+    }
 }
 </script>
 
@@ -74,10 +126,20 @@ body {
   align-items: center;
 }
 
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .logo {
   cursor: pointer;
   color: #409eff;
   margin: 0;
+}
+
+.back-button {
+  font-size: 14px;
 }
 
 .nav-right {

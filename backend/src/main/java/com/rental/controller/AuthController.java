@@ -17,18 +17,22 @@ public class AuthController {
 
     @PostMapping("/login")
     public Result<SysUser> login(@RequestBody SysUser loginUser) {
-        SysUser user = sysUserService.login(loginUser.getUsername(), loginUser.getPassword());
-        if (user != null) {
-            return Result.success(user);
+        try {
+            SysUser user = sysUserService.loginByPhone(loginUser.getPhone(), loginUser.getPassword());
+            if (user != null) {
+                return Result.success(user);
+            }
+            return Result.error("手机号或密码错误");
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
         }
-        return Result.error("Invalid username or password");
     }
 
     @PostMapping("/register")
     public Result<String> register(@RequestBody SysUser user) {
         try {
             sysUserService.register(user);
-            return Result.success("Registration successful");
+            return Result.success("注册成功");
         } catch (Exception e) {
             return Result.error(e.getMessage());
         }

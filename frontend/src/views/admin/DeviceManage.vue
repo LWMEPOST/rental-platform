@@ -15,7 +15,6 @@
     </div>
 
     <el-table :data="devices" v-loading="loading" style="width: 100%; margin-top: 20px;">
-      <el-table-column prop="id" label="ID" width="80" />
       <el-table-column label="图片" width="100">
         <template #default="scope">
           <img :src="scope.row.mainImage" style="width: 50px; height: 50px; object-fit: cover;" />
@@ -62,14 +61,17 @@
     <el-dialog
       v-model="dialogVisible"
       :title="isEdit ? '编辑设备' : '新增设备'"
-      width="500px"
+      width="760px"
     >
-      <el-form :model="form" label-width="80px">
+      <el-form :model="form" label-width="100px">
         <el-form-item label="名称">
           <el-input v-model="form.name" />
         </el-form-item>
         <el-form-item label="品牌">
           <el-input v-model="form.brand" />
+        </el-form-item>
+        <el-form-item label="型号">
+          <el-input v-model="form.model" placeholder="如 X-T5 / ILCE-7M4" />
         </el-form-item>
         <el-form-item label="分类">
           <el-select v-model="form.categoryIds" multiple placeholder="请选择分类(可多选)">
@@ -96,6 +98,16 @@
         <el-form-item label="描述">
           <el-input v-model="form.description" type="textarea" />
         </el-form-item>
+        <el-form-item label="详细参数">
+          <div class="spec-editor">
+            <div v-for="(item, index) in specItems" :key="index" class="spec-row">
+              <el-input v-model="item.key" placeholder="参数名称，如传感器尺寸" />
+              <el-input v-model="item.value" placeholder="参数值，如 APS-C" />
+              <el-button type="danger" plain @click="removeSpecItem(index)">删除</el-button>
+            </div>
+            <el-button type="primary" plain @click="addSpecItem">新增参数</el-button>
+          </div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
@@ -120,21 +132,75 @@ const pageSize = ref(10)
 const total = ref(0)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
+const specItems = ref([])
 
 const form = reactive({
     id: null,
     name: '',
     brand: '',
+    model: '',
     categoryIds: [],
     mainImage: '',
     rentalPrice: 0,
     depositAmount: 0,
     stockQuantity: 0,
     description: '',
+    specs: '',
     status: 1
 })
 
 const categories = ref([])
+
+const createEmptySpecItem = () => ({
+    key: '',
+    value: ''
+})
+
+const parseSpecs = (specs) => {
+    if (!specs) {
+        return [createEmptySpecItem()]
+    }
+    try {
+        const parsed = typeof specs === 'string' ? JSON.parse(specs) : specs
+        const entries = Object.entries(parsed || {}).map(([key, value]) => ({
+            key,
+            value: value == null ? '' : String(value)
+        }))
+        return entries.length > 0 ? entries : [createEmptySpecItem()]
+    } catch (e) {
+        return [createEmptySpecItem()]
+    }
+}
+
+const buildSpecs = () => {
+    const specs = {}
+    specItems.value.forEach(item => {
+        const key = item.key.trim()
+        const value = item.value.trim()
+        if (key && value) {
+            specs[key] = value
+        }
+    })
+    return Object.keys(specs).length > 0 ? JSON.stringify(specs) : ''
+}
+
+const resetForm = () => {
+    Object.assign(form, {
+        id: null,
+        name: '',
+        brand: '',
+        model: '',
+        categoryIds: [],
+        mainImage: '',
+        rentalPrice: 0,
+        depositAmount: 0,
+        stockQuantity: 0,
+        description: '',
+        specs: '',
+        status: 1
+    })
+    specItems.value = [createEmptySpecItem()]
+}
 
 const fetchCategories = async () => {
     try {
@@ -174,24 +240,27 @@ const handlePageChange = (page) => {
 
 const handleAdd = () => {
     isEdit.value = false
-    Object.assign(form, {
-        id: null,
-        name: '',
-        brand: '',
-        categoryIds: [],
-        mainImage: '',
-        rentalPrice: 0,
-        depositAmount: 0,
-        stockQuantity: 0,
-        description: '',
-        status: 1
-    })
+    resetForm()
     dialogVisible.value = true
 }
 
 const handleEdit = (row) => {
     isEdit.value = true
-    Object.assign(form, row)
+    Object.assign(form, {
+        id: row.id,
+        name: row.name || '',
+        brand: row.brand || '',
+        model: row.model || '',
+        categoryIds: Array.isArray(row.categoryIds) ? [...row.categoryIds] : [],
+        mainImage: row.mainImage || '',
+        rentalPrice: row.rentalPrice ?? 0,
+        depositAmount: row.depositAmount ?? 0,
+        stockQuantity: row.stockQuantity ?? 0,
+        description: row.description || '',
+        specs: row.specs || '',
+        status: row.status ?? 1
+    })
+    specItems.value = parseSpecs(row.specs)
     dialogVisible.value = true
 }
 
@@ -212,7 +281,11 @@ const handleDelete = (row) => {
 const toggleStatus = async (row) => {
     try {
         const newStatus = row.status === 1 ? 0 : 1
-        const payload = { ...row, status: newStatus }
+        const payload = {
+            ...row,
+            status: newStatus,
+            specs: row.specs || ''
+        }
         await request.put('/device/update', payload)
         ElMessage.success('操作成功')
         fetchDevices()
@@ -223,10 +296,15 @@ const toggleStatus = async (row) => {
 
 const submitForm = async () => {
     try {
+        const payload = {
+            ...form,
+            categoryIds: [...form.categoryIds],
+            specs: buildSpecs()
+        }
         if (isEdit.value) {
-            await request.put('/device/update', form)
+            await request.put('/device/update', payload)
         } else {
-            await request.post('/device/add', form)
+            await request.post('/device/add', payload)
         }
         ElMessage.success(isEdit.value ? '更新成功' : '添加成功')
         dialogVisible.value = false
@@ -236,9 +314,22 @@ const submitForm = async () => {
     }
 }
 
+const addSpecItem = () => {
+    specItems.value.push(createEmptySpecItem())
+}
+
+const removeSpecItem = (index) => {
+    if (specItems.value.length === 1) {
+        specItems.value = [createEmptySpecItem()]
+        return
+    }
+    specItems.value.splice(index, 1)
+}
+
 onMounted(() => {
     fetchCategories()
     fetchDevices()
+    resetForm()
 })
 </script>
 
@@ -246,5 +337,19 @@ onMounted(() => {
 .toolbar {
     display: flex;
     align-items: center;
+}
+
+.spec-editor {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.spec-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 10px;
+    width: 100%;
 }
 </style>

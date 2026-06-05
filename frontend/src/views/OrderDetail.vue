@@ -31,7 +31,7 @@
         </el-descriptions>
 
         <el-descriptions title="租赁信息" border :column="2" class="mt-4">
-          <el-descriptions-item label="设备ID">{{ order.deviceId }}</el-descriptions-item>
+          <el-descriptions-item label="设备名称">{{ deviceName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="租期">
              {{ formatTime(order.startTime) }} 至 {{ formatTime(order.endTime) }}
           </el-descriptions-item>
@@ -41,15 +41,18 @@
 
         <div class="actions mt-4">
            <el-button v-if="order.status === 0" type="primary" @click="handlePay">立即支付</el-button>
+           <el-button v-if="order.status === 0" type="danger" plain @click="handleCancel">取消订单</el-button>
            <el-button v-if="order.status === 2" type="success" @click="handleReturn">申请归还</el-button>
-           <el-button v-if="order.status === 4" @click="openReviewDialog">评价订单</el-button>
+           <el-button v-if="order.status === 4 && !currentComment" @click="openReviewDialog()">评价订单</el-button>
+           <el-button v-if="order.status === 4 && currentComment" @click="openReviewDialog(currentComment)">修改评价</el-button>
+           <el-button v-if="order.status === 4 && currentComment" type="danger" plain @click="handleDeleteComment">删除评价</el-button>
         </div>
       </div>
       <el-empty v-else description="订单不存在" />
     </el-card>
 
     <!-- Review Dialog (Reuse logic or component, here simplified duplicate) -->
-    <el-dialog v-model="reviewDialogVisible" title="评价设备">
+    <el-dialog v-model="reviewDialogVisible" :title="reviewForm.id ? '修改评价' : '评价设备'">
       <el-form :model="reviewForm">
         <el-form-item label="评分">
            <el-rate v-model="reviewForm.rating" show-score text-color="#ff9900" />
@@ -70,16 +73,19 @@
 import { ref, onMounted, computed, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import request from '../api/request'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const route = useRoute()
 const router = useRouter()
 const orderId = route.params.id
 const order = ref(null)
+const deviceName = ref('')
 const loading = ref(false)
+const currentComment = ref(null)
 
 const reviewDialogVisible = ref(false)
 const reviewForm = reactive({
+    id: null,
     rating: 5,
     content: ''
 })
@@ -102,6 +108,10 @@ const fetchDetail = async () => {
         const res = await request.get(`/order/detail/${orderId}`)
         if (res.code === 200) {
             order.value = res.data
+            await Promise.all([
+                fetchCurrentComment(),
+                fetchDeviceName(order.value.deviceId)
+            ])
         } else {
             ElMessage.error(res.message)
         }
@@ -109,6 +119,44 @@ const fetchDetail = async () => {
         ElMessage.error('加载失败')
     } finally {
         loading.value = false
+    }
+}
+
+const fetchDeviceName = async (deviceId) => {
+    if (!deviceId) {
+        deviceName.value = ''
+        return
+    }
+    try {
+        const res = await request.get(`/device/${deviceId}`)
+        if (res.code === 200) {
+            deviceName.value = res.data?.name || ''
+        } else {
+            deviceName.value = ''
+        }
+    } catch (e) {
+        deviceName.value = ''
+    }
+}
+
+const fetchCurrentComment = async () => {
+    const user = JSON.parse(localStorage.getItem('user'))
+    if (!user || !order.value) {
+        currentComment.value = null
+        return
+    }
+    try {
+        const res = await request.get('/comment/user/list', {
+            params: {
+                userId: user.id,
+                orderId: order.value.id
+            }
+        })
+        if (res.code === 200) {
+            currentComment.value = res.data.length > 0 ? res.data[0] : null
+        }
+    } catch (e) {
+        currentComment.value = null
     }
 }
 
@@ -122,6 +170,20 @@ const handlePay = async () => {
     }
 }
 
+const handleCancel = () => {
+    ElMessageBox.confirm('确定取消该订单吗？取消后不可恢复。', '提示', {
+        type: 'warning'
+    }).then(async () => {
+        try {
+            await request.post(`/order/cancel/${orderId}`)
+            ElMessage.success('订单已取消')
+            fetchDetail()
+        } catch (e) {
+            ElMessage.error('取消失败')
+        }
+    }).catch(() => {})
+}
+
 const handleReturn = async () => {
     try {
         await request.post(`/order/return/${orderId}`)
@@ -132,7 +194,10 @@ const handleReturn = async () => {
     }
 }
 
-const openReviewDialog = () => {
+const openReviewDialog = (comment = null) => {
+    reviewForm.id = comment?.id || null
+    reviewForm.rating = comment?.rating || 5
+    reviewForm.content = comment?.content || ''
     reviewDialogVisible.value = true
 }
 
@@ -140,22 +205,58 @@ const submitReview = async () => {
     const user = JSON.parse(localStorage.getItem('user'))
     try {
         const payload = {
+            id: reviewForm.id,
             userId: user.id,
             orderId: order.value.id,
             deviceId: order.value.deviceId,
             rating: reviewForm.rating,
             content: reviewForm.content
         }
-        const res = await request.post('/comment/add', payload)
+        const res = reviewForm.id
+          ? await request.put('/comment/update', payload)
+          : await request.post('/comment/add', payload)
         if (res.code === 200) {
-            ElMessage.success('评价成功')
+            ElMessage.success(reviewForm.id ? '评价已更新' : '评价成功')
             reviewDialogVisible.value = false
+            resetReviewForm()
+            fetchCurrentComment()
         } else {
             ElMessage.error(res.message)
         }
     } catch (e) {
         ElMessage.error('提交失败')
     }
+}
+
+const handleDeleteComment = () => {
+    const user = JSON.parse(localStorage.getItem('user'))
+    if (!currentComment.value) {
+        return
+    }
+    ElMessageBox.confirm('确定删除这条评价吗？删除后不可恢复。', '提示', {
+        type: 'warning'
+    }).then(async () => {
+        try {
+            const res = await request.delete(`/comment/user/${currentComment.value.id}`, {
+                params: { userId: user.id }
+            })
+            if (res.code === 200) {
+                ElMessage.success('删除成功')
+                currentComment.value = null
+                resetReviewForm()
+            } else {
+                ElMessage.error(res.message || '删除失败')
+            }
+        } catch (e) {
+            ElMessage.error('删除失败')
+        }
+    }).catch(() => {})
+}
+
+const resetReviewForm = () => {
+    reviewForm.id = null
+    reviewForm.rating = 5
+    reviewForm.content = ''
 }
 
 const formatTime = (time) => time ? time.replace('T', ' ') : ''

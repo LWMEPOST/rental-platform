@@ -152,7 +152,7 @@ const submitOrder = async () => {
       const res = await request.post('/order/create', params)
       if (res.code === 200) {
           ElMessage.success('订单提交成功')
-          await mockPay(res.data.id)
+          router.push(`/order/detail/${res.data.id}`)
       } else {
           ElMessage.error(res.message || '下单失败')
       }
@@ -160,16 +160,6 @@ const submitOrder = async () => {
       console.error(error)
       ElMessage.error('下单异常')
   }
-}
-
-const mockPay = async (orderId) => {
-    try {
-        await request.post(`/order/pay/${orderId}`)
-        ElMessage.success('支付成功')
-        router.push('/')
-    } catch (e) {
-        ElMessage.error('支付失败')
-    }
 }
 
 onMounted(() => {

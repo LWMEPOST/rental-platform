@@ -36,6 +36,7 @@
             <span>订单管理</span>
           </template>
           <el-menu-item index="/admin/order">订单列表</el-menu-item>
+          <el-menu-item index="/admin/comment">评论管理</el-menu-item>
           <el-menu-item index="/admin/analysis">运营分析</el-menu-item>
         </el-sub-menu>
       </el-menu>
@@ -75,9 +76,9 @@ const router = useRouter()
 
 const activeMenu = computed(() => route.path)
 
-const handleLogout = () => {
+const handleLogout = async () => {
     localStorage.removeItem('user')
-    router.push('/')
+    await router.replace('/')
 }
 </script>
 

@@ -4,11 +4,9 @@
       <el-button type="primary" @click="handleAdd">新增分类</el-button>
     </div>
 
-    <el-table :data="categories" v-loading="loading" style="width: 100%; margin-top: 20px;">
-      <el-table-column prop="id" label="ID" width="80" />
-      <el-table-column prop="name" label="分类名称" />
-      <el-table-column prop="sortOrder" label="排序" width="80" />
-      <el-table-column prop="createTime" label="创建时间" width="180">
+    <el-table :data="categories" v-loading="loading" style="max-width: 800px; margin-top: 20px;">
+      <el-table-column prop="name" label="分类名称" min-width="200" />
+      <el-table-column prop="createTime" label="创建时间" width="250">
           <template #default="scope">{{ formatTime(scope.row.createTime) }}</template>
       </el-table-column>
       <el-table-column label="操作" width="200">

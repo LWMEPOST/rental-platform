@@ -23,9 +23,7 @@
     </div>
 
     <el-table :data="orders" v-loading="loading" style="width: 100%; margin-top: 20px;">
-      <el-table-column prop="orderNo" label="订单号" width="180" />
-      <el-table-column prop="userId" label="用户ID" width="80" />
-      <el-table-column prop="deviceId" label="设备ID" width="80" />
+      <el-table-column prop="orderNo" label="订单号" width="220" />
       <el-table-column label="租期" width="200">
           <template #default="scope">
               {{ formatTime(scope.row.startTime) }} <br/> 至 {{ formatTime(scope.row.endTime) }}

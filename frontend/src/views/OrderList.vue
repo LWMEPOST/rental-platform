@@ -20,11 +20,6 @@
           
           <div class="order-content">
             <div class="info-row">
-              <span class="label">租赁设备ID:</span>
-              <span class="value">{{ order.deviceId }}</span>
-              <!-- Ideally we should fetch device name, or backend includes it -->
-            </div>
-            <div class="info-row">
               <span class="label">租赁时间:</span>
               <span class="value">{{ formatTime(order.startTime) }} 至 {{ formatTime(order.endTime) }}</span>
             </div>
@@ -39,8 +34,31 @@
             <span class="time">下单时间: {{ formatTime(order.createTime) }}</span>
             <div class="actions">
                <el-button v-if="order.status === 0" type="primary" size="small" @click="handlePay(order.id)">去支付</el-button>
+               <el-button v-if="order.status === 0" type="danger" plain size="small" @click="handleCancel(order.id)">取消订单</el-button>
                <el-button v-if="order.status === 2" type="success" size="small" @click="handleReturn(order.id)">归还设备</el-button>
-               <el-button v-if="order.status === 4" size="small" @click="openReviewDialog(order)">评价</el-button>
+               <el-button
+                 v-if="order.status === 4 && !getOrderComment(order.id)"
+                 size="small"
+                 @click="openReviewDialog(order)"
+               >
+                 评价
+               </el-button>
+               <el-button
+                 v-if="order.status === 4 && getOrderComment(order.id)"
+                 size="small"
+                 @click="openReviewDialog(order, getOrderComment(order.id))"
+               >
+                 修改评价
+               </el-button>
+               <el-button
+                 v-if="order.status === 4 && getOrderComment(order.id)"
+                 type="danger"
+                 plain
+                 size="small"
+                 @click="handleDeleteComment(getOrderComment(order.id).id)"
+               >
+                 删除评价
+               </el-button>
                <el-button size="small" @click="router.push(`/order/detail/${order.id}`)">查看详情</el-button>
             </div>
           </div>
@@ -58,7 +76,7 @@
     </el-card>
 
     <!-- Review Dialog -->
-    <el-dialog v-model="reviewDialogVisible" title="评价设备">
+    <el-dialog v-model="reviewDialogVisible" :title="reviewForm.id ? '修改评价' : '评价设备'">
       <el-form :model="reviewForm">
         <el-form-item label="评分">
            <el-rate v-model="reviewForm.rating" show-score text-color="#ff9900" />
@@ -79,7 +97,7 @@
 import { ref, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import request from '../api/request'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const router = useRouter()
 const orders = ref([])
@@ -87,9 +105,11 @@ const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
+const userComments = ref([])
 
 const reviewDialogVisible = ref(false)
 const reviewForm = reactive({
+    id: null,
     orderId: null,
     deviceId: null,
     rating: 5,
@@ -105,15 +125,26 @@ const fetchOrders = async () => {
 
   loading.value = true
   try {
-    const params = {
-      page: currentPage.value,
-      size: pageSize.value,
-      userId: user.id
+    const [orderRes, commentRes] = await Promise.all([
+      request.get('/order/list', {
+        params: {
+          page: currentPage.value,
+          size: pageSize.value,
+          userId: user.id
+        }
+      }),
+      request.get('/comment/user/list', {
+        params: {
+          userId: user.id
+        }
+      })
+    ])
+    if (orderRes.code === 200) {
+      orders.value = orderRes.data.records
+      total.value = orderRes.data.total
     }
-    const res = await request.get('/order/list', { params })
-    if (res.code === 200) {
-      orders.value = res.data.records
-      total.value = res.data.total
+    if (commentRes.code === 200) {
+      userComments.value = commentRes.data
     }
   } catch (error) {
     console.error(error)
@@ -138,6 +169,20 @@ const handlePay = async (orderId) => {
     }
 }
 
+const handleCancel = (orderId) => {
+  ElMessageBox.confirm('确定取消该订单吗？取消后不可恢复。', '提示', {
+    type: 'warning'
+  }).then(async () => {
+    try {
+      await request.post(`/order/cancel/${orderId}`)
+      ElMessage.success('订单已取消')
+      fetchOrders()
+    } catch (e) {
+      ElMessage.error('取消失败')
+    }
+  }).catch(() => {})
+}
+
 const handleReturn = async (orderId) => {
     try {
         await request.post(`/order/return/${orderId}`)
@@ -148,11 +193,12 @@ const handleReturn = async (orderId) => {
     }
 }
 
-const openReviewDialog = (order) => {
+const openReviewDialog = (order, comment = null) => {
+    reviewForm.id = comment?.id || null
     reviewForm.orderId = order.id
     reviewForm.deviceId = order.deviceId
-    reviewForm.rating = 5
-    reviewForm.content = ''
+    reviewForm.rating = comment?.rating || 5
+    reviewForm.content = comment?.content || ''
     reviewDialogVisible.value = true
 }
 
@@ -160,16 +206,51 @@ const submitReview = async () => {
     const user = JSON.parse(localStorage.getItem('user'))
     try {
         const payload = { ...reviewForm, userId: user.id }
-        const res = await request.post('/comment/add', payload)
+        const res = reviewForm.id
+          ? await request.put('/comment/update', payload)
+          : await request.post('/comment/add', payload)
         if (res.code === 200) {
-            ElMessage.success('评价成功')
+            ElMessage.success(reviewForm.id ? '评价已更新' : '评价成功')
             reviewDialogVisible.value = false
+            resetReviewForm()
+            fetchOrders()
         } else {
             ElMessage.error(res.message)
         }
     } catch (e) {
         ElMessage.error('提交失败')
     }
+}
+
+const handleDeleteComment = (commentId) => {
+    const user = JSON.parse(localStorage.getItem('user'))
+    ElMessageBox.confirm('确定删除这条评价吗？删除后不可恢复。', '提示', {
+      type: 'warning'
+    }).then(async () => {
+      try {
+        const res = await request.delete(`/comment/user/${commentId}`, {
+          params: { userId: user.id }
+        })
+        if (res.code === 200) {
+          ElMessage.success('删除成功')
+          fetchOrders()
+        } else {
+          ElMessage.error(res.message || '删除失败')
+        }
+      } catch (e) {
+        ElMessage.error('删除失败')
+      }
+    }).catch(() => {})
+}
+
+const getOrderComment = (orderId) => userComments.value.find(item => item.orderId === orderId)
+
+const resetReviewForm = () => {
+    reviewForm.id = null
+    reviewForm.orderId = null
+    reviewForm.deviceId = null
+    reviewForm.rating = 5
+    reviewForm.content = ''
 }
 
 const getStatusText = (status) => {

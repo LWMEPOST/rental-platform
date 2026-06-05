@@ -9,10 +9,7 @@
     </div>
 
     <el-table :data="list" v-loading="loading" style="width: 100%; margin-top: 20px;">
-      <el-table-column prop="id" label="ID" width="80" />
-      <el-table-column prop="userId" label="用户ID" width="80" />
       <el-table-column prop="realName" label="真实姓名" />
-      <el-table-column prop="idCard" label="身份证号" />
       <el-table-column prop="status" label="状态" width="100">
         <template #default="scope">
           <el-tag :type="getStatusType(scope.row.status)">{{ getStatusText(scope.row.status) }}</el-tag>

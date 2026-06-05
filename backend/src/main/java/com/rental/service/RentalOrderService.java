@@ -9,4 +9,6 @@ public interface RentalOrderService extends IService<RentalOrder> {
     RentalOrder createOrder(Long userId, Long deviceId, LocalDateTime startTime, LocalDateTime endTime);
     void payOrder(Long orderId);
     void returnOrder(Long orderId);
+    void cancelOrder(Long orderId);
+    void updateStatusByAdmin(Long orderId, Integer status);
 }

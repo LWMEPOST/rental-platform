@@ -7,8 +7,8 @@
         </div>
       </template>
       <el-form :model="form" label-width="80px">
-        <el-form-item label="用户名">
-          <el-input v-model="form.username" placeholder="请输入用户名" />
+        <el-form-item label="手机号">
+          <el-input v-model="form.phone" placeholder="请输入手机号" />
         </el-form-item>
         <el-form-item label="密码">
           <el-input v-model="form.password" type="password" placeholder="请输入密码" show-password />
@@ -18,36 +18,26 @@
           <el-button @click="$router.push('/register')">注册</el-button>
         </el-form-item>
       </el-form>
-      <div class="third-party">
-        <el-divider>第三方登录</el-divider>
-        <el-space>
-            <el-button circle>
-                <el-icon><ChatDotRound /></el-icon>
-            </el-button>
-            <el-button circle>
-                <el-icon><Wallet /></el-icon>
-            </el-button>
-        </el-space>
-      </div>
     </el-card>
   </div>
 </template>
 
 <script setup>
 import { reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '../api/request'
 
 const router = useRouter()
+const route = useRoute()
 const form = reactive({
-  username: '',
+  phone: '',
   password: ''
 })
 
 const onSubmit = async () => {
-  if (!form.username || !form.password) {
-      ElMessage.warning('请输入用户名和密码')
+  if (!form.phone || !form.password) {
+      ElMessage.warning('请输入手机号和密码')
       return
   }
   try {
@@ -55,15 +45,12 @@ const onSubmit = async () => {
       if (res.code === 200) {
           ElMessage.success('登录成功')
           localStorage.setItem('user', JSON.stringify(res.data))
+          const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
           if (res.data.role === 'ADMIN') {
-              router.push('/admin/dashboard')
+              await router.replace(redirect.startsWith('/admin') ? redirect : '/admin/dashboard')
           } else {
-              router.push('/')
+              await router.replace(redirect && !redirect.startsWith('/admin') ? redirect : '/')
           }
-          // Force reload to update header state
-          setTimeout(() => {
-              window.location.reload()
-          }, 100)
       } else {
           ElMessage.error(res.message || '登录失败')
       }
@@ -83,9 +70,5 @@ const onSubmit = async () => {
 }
 .login-card {
   width: 400px;
-}
-.third-party {
-  text-align: center;
-  margin-top: 20px;
 }
 </style>

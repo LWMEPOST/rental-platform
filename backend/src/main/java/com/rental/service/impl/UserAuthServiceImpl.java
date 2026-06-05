@@ -6,6 +6,7 @@ import com.rental.entity.UserAuth;
 import com.rental.mapper.UserAuthMapper;
 import com.rental.service.UserAuthService;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 
@@ -19,6 +20,19 @@ public class UserAuthServiceImpl extends ServiceImpl<UserAuthMapper, UserAuth> i
 
     @Override
     public void applyAuth(UserAuth auth) {
+        if (auth == null || auth.getUserId() == null) {
+            throw new RuntimeException("用户信息不能为空");
+        }
+        if (!StringUtils.hasText(auth.getRealName())) {
+            throw new RuntimeException("真实姓名不能为空");
+        }
+
+        String realName = auth.getRealName().trim();
+        if (realName.length() < 2 || realName.length() > 20) {
+            throw new RuntimeException("真实姓名长度需在2-20个字符之间");
+        }
+        auth.setRealName(realName);
+
         UserAuth existing = getByUserId(auth.getUserId());
         if (existing != null) {
             // Update existing application

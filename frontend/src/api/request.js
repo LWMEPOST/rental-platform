@@ -34,7 +34,9 @@ service.interceptors.response.use(
   },
   (error) => {
     console.log('err' + error)
-    ElMessage.error(error.message)
+    const message = error?.response?.data?.message
+      || (error?.code === 'ECONNABORTED' ? '请求超时，请稍后重试' : '请求失败，请稍后重试')
+    ElMessage.error(message)
     return Promise.reject(error)
   }
 )

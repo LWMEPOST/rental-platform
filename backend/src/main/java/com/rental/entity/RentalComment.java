@@ -1,5 +1,6 @@
 package com.rental.entity;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -19,4 +20,10 @@ public class RentalComment {
     private String content;
     private Integer rating; // 1-5 stars
     private LocalDateTime createTime;
+
+    @TableField(exist = false)
+    private String orderNo;
+
+    @TableField(exist = false)
+    private String deviceName;
 }

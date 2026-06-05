@@ -32,15 +32,61 @@ CREATE TABLE IF NOT EXISTS user_auth (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL UNIQUE,
     real_name VARCHAR(50) NOT NULL,
-    id_card VARCHAR(20) NOT NULL,
-    card_front_img VARCHAR(255),
-    card_back_img VARCHAR(255),
     status TINYINT DEFAULT 0 COMMENT 'Status: 0-Pending, 1-Approved, 2-Rejected',
     audit_remark VARCHAR(255),
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     audit_time DATETIME,
     FOREIGN KEY (user_id) REFERENCES sys_user(id) ON DELETE CASCADE
 ) COMMENT 'Real-name Authentication';
+
+-- Compatibility: remove deprecated identity columns
+SET @has_id_card := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'user_auth'
+      AND COLUMN_NAME = 'id_card'
+);
+SET @sql_drop_id_card := IF(
+    @has_id_card > 0,
+    'ALTER TABLE user_auth DROP COLUMN id_card',
+    'SELECT 1'
+);
+PREPARE stmt_drop_id_card FROM @sql_drop_id_card;
+EXECUTE stmt_drop_id_card;
+DEALLOCATE PREPARE stmt_drop_id_card;
+
+SET @has_card_front_img := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'user_auth'
+      AND COLUMN_NAME = 'card_front_img'
+);
+SET @sql_drop_card_front_img := IF(
+    @has_card_front_img > 0,
+    'ALTER TABLE user_auth DROP COLUMN card_front_img',
+    'SELECT 1'
+);
+PREPARE stmt_drop_card_front_img FROM @sql_drop_card_front_img;
+EXECUTE stmt_drop_card_front_img;
+DEALLOCATE PREPARE stmt_drop_card_front_img;
+
+SET @has_card_back_img := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'user_auth'
+      AND COLUMN_NAME = 'card_back_img'
+);
+SET @sql_drop_card_back_img := IF(
+    @has_card_back_img > 0,
+    'ALTER TABLE user_auth DROP COLUMN card_back_img',
+    'SELECT 1'
+);
+PREPARE stmt_drop_card_back_img FROM @sql_drop_card_back_img;
+EXECUTE stmt_drop_card_back_img;
+DEALLOCATE PREPARE stmt_drop_card_back_img;
 
 -- Device Category Table (Simplified: Flat Structure)
 CREATE TABLE IF NOT EXISTS device_category (
@@ -68,6 +114,28 @@ CREATE TABLE IF NOT EXISTS device (
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) COMMENT 'Device Information';
+
+-- Compatibility: old database may still have non-null category_id column
+SET @has_category_id := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'device'
+      AND COLUMN_NAME = 'category_id'
+);
+SET @sql_category_id := IF(
+    @has_category_id > 0,
+    'ALTER TABLE device MODIFY COLUMN category_id BIGINT NULL',
+    'SELECT 1'
+);
+PREPARE stmt_category_id FROM @sql_category_id;
+EXECUTE stmt_category_id;
+DEALLOCATE PREPARE stmt_category_id;
+
+-- Compatibility: unify charset/collation for Chinese text to avoid mojibake
+ALTER TABLE device_category CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE device CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE rental_comment CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- Device-Category Mapping Table (Many-to-Many)
 CREATE TABLE IF NOT EXISTS device_category_mapping (
@@ -97,6 +165,17 @@ CREATE TABLE IF NOT EXISTS rental_order (
     delivery_time DATETIME,
     return_time DATETIME
 ) COMMENT 'Rental Order';
+
+-- User Favorite Table
+CREATE TABLE IF NOT EXISTS user_favorite (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    device_id BIGINT NOT NULL,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES sys_user(id) ON DELETE CASCADE,
+    FOREIGN KEY (device_id) REFERENCES device(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_user_device (user_id, device_id)
+) COMMENT 'User Favorite Devices';
 
 -- Repair/Complaint Table
 CREATE TABLE IF NOT EXISTS after_sales (

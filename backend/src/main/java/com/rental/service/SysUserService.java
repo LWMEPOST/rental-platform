@@ -7,7 +7,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.rental.entity.SysUser;
 
 public interface SysUserService extends IService<SysUser> {
-    SysUser login(String username, String password);
+    SysUser loginByPhone(String phone, String password);
     void register(SysUser user);
     IPage<SysUser> getUserListWithExtraStatus(Page<SysUser> page, LambdaQueryWrapper<SysUser> wrapper);
 }

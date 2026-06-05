@@ -8,14 +8,11 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("user_auth")
-public class UserAuth {
+@TableName("user_favorite")
+public class UserFavorite {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long userId;
-    private String realName;
-    private Integer status; // 0-Pending, 1-Approved, 2-Rejected
-    private String auditRemark;
+    private Long deviceId;
     private LocalDateTime createTime;
-    private LocalDateTime auditTime;
 }

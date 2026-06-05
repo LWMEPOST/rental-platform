@@ -19,6 +19,7 @@ import org.springframework.util.StringUtils;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,10 +32,12 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private RentalOrderMapper rentalOrderMapper;
 
     @Override
-    public SysUser login(String username, String password) {
-        // 1. Try finding user by username
+    public SysUser loginByPhone(String phone, String password) {
+        if (!StringUtils.hasText(phone) || !StringUtils.hasText(password)) {
+            return null;
+        }
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(SysUser::getUsername, username);
+        wrapper.eq(SysUser::getPhone, phone);
         SysUser user = this.getOne(wrapper);
 
         if (user == null) {
@@ -45,6 +48,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         String inputMd5 = DigestUtils.md5DigestAsHex(password.getBytes(StandardCharsets.UTF_8));
         
         if (user.getPassword().equals(inputMd5)) {
+            if (!Objects.equals(user.getStatus(), 1)) {
+                throw new RuntimeException("账号已被禁用");
+            }
             return user;
         }
         

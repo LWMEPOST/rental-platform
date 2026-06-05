@@ -14,12 +14,11 @@
     </div>
 
     <el-table :data="users" v-loading="loading" style="width: 100%; margin-top: 20px;">
-      <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="username" label="用户名" />
       <el-table-column prop="phone" label="手机号" />
       <el-table-column prop="role" label="角色" width="120">
           <template #default="scope">
-              <el-tag>{{ scope.row.role }}</el-tag>
+              <el-tag>{{ getRoleText(scope.row.role) }}</el-tag>
           </template>
       </el-table-column>
       <el-table-column prop="status" label="状态" width="100">
@@ -124,6 +123,13 @@ const toggleStatus = (row) => {
             ElMessage.error('操作失败')
         }
     })
+}
+
+const getRoleText = (role) => {
+    if (role === 'ADMIN') return '管理员'
+    if (role === 'MERCHANT') return '商家'
+    if (role === 'CLIENT') return '租客'
+    return '未知'
 }
 
 const formatTime = (time) => {

@@ -3,11 +3,25 @@
     <el-tabs tab-position="left" style="height: 100%;">
       <el-tab-pane label="基本信息">
         <el-card>
-          <template #header>基本信息</template>
+          <template #header>
+            <div class="card-header">
+              <span>基本信息</span>
+              <el-dropdown v-if="isAdminUser" trigger="click">
+                <el-button type="primary" plain>
+                  管理入口
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item @click="goToConsole">进入控制台</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
+          </template>
           <el-descriptions :column="1" border>
             <el-descriptions-item label="用户名">{{ user?.username }}</el-descriptions-item>
             <el-descriptions-item label="手机号">{{ user?.phone }}</el-descriptions-item>
-            <el-descriptions-item label="角色">{{ user?.role }}</el-descriptions-item>
+            <el-descriptions-item label="角色">{{ roleText }}</el-descriptions-item>
             <el-descriptions-item label="注册时间">{{ formatTime(user?.createTime) }}</el-descriptions-item>
           </el-descriptions>
         </el-card>
@@ -22,7 +36,7 @@
               title="已通过认证"
               type="success"
               show-icon
-              :description="`真实姓名：${authInfo.realName} | 身份证号：${maskIdCard(authInfo.idCard)}`"
+              :description="`真实姓名：${authInfo.realName}`"
             />
             <el-alert
               v-else-if="authInfo.status === 0"
@@ -42,18 +56,9 @@
           
           <div v-if="!authInfo || authInfo.status === 2" class="mt-4">
             <h3>申请认证</h3>
-            <el-form :model="authForm" label-width="100px" style="max-width: 500px;">
-              <el-form-item label="真实姓名">
+            <el-form ref="authFormRef" :model="authForm" :rules="authRules" label-width="100px" style="max-width: 500px;">
+              <el-form-item label="真实姓名" prop="realName">
                 <el-input v-model="authForm.realName" />
-              </el-form-item>
-              <el-form-item label="身份证号">
-                <el-input v-model="authForm.idCard" />
-              </el-form-item>
-              <el-form-item label="证件照片">
-                 <el-upload action="#" list-type="picture-card" :auto-upload="false" disabled>
-                    <el-icon><Plus /></el-icon>
-                 </el-upload>
-                 <div class="tip">演示模式暂不支持文件上传</div>
               </el-form-item>
               <el-form-item>
                 <el-button type="primary" @click="submitAuth">提交认证</el-button>
@@ -122,16 +127,31 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive } from 'vue'
+import { computed, ref, onMounted, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import request from '../api/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
+const router = useRouter()
 const user = ref(JSON.parse(localStorage.getItem('user')))
 const authInfo = ref(null)
-const authForm = reactive({
-    realName: '',
-    idCard: ''
+const isAdminUser = computed(() => user.value?.role === 'ADMIN')
+const roleText = computed(() => {
+    if (user.value?.role === 'ADMIN') return '管理员'
+    if (user.value?.role === 'MERCHANT') return '商家'
+    if (user.value?.role === 'CLIENT') return '租客'
+    return user.value?.role || ''
 })
+const authFormRef = ref()
+const authForm = reactive({
+    realName: ''
+})
+const authRules = {
+    realName: [
+        { required: true, message: '请输入真实姓名', trigger: 'blur' },
+        { min: 2, max: 20, message: '真实姓名长度需为2-20个字符', trigger: 'blur' }
+    ]
+}
 
 const addresses = ref([])
 const addressDialogVisible = ref(false)
@@ -159,7 +179,8 @@ const fetchAuthInfo = async () => {
 
 const submitAuth = async () => {
     try {
-        const payload = { ...authForm, userId: user.value.id }
+        await authFormRef.value.validate()
+        const payload = { ...authForm, realName: authForm.realName.trim(), userId: user.value.id }
         const res = await request.post('/auth/identity/apply', payload)
         if (res.code === 200) {
             ElMessage.success('提交成功')
@@ -240,8 +261,11 @@ const setDefaultAddress = async (row) => {
     }
 }
 
+const goToConsole = () => {
+    router.push('/admin/dashboard')
+}
+
 const formatTime = (time) => time ? time.replace('T', ' ') : ''
-const maskIdCard = (id) => id ? id.replace(/^(.{4})(?:\d+)(.{4})$/, "$1******$2") : ''
 
 onMounted(() => {
     if (user.value) {
@@ -264,10 +288,5 @@ onMounted(() => {
 }
 .mt-4 {
   margin-top: 20px;
-}
-.tip {
-    font-size: 12px;
-    color: #999;
-    margin-top: 5px;
 }
 </style>

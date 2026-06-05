@@ -11,6 +11,13 @@
           <el-button @click="handleSearch">搜索</el-button>
         </template>
       </el-input>
+      <el-button
+        v-if="isSearchMode"
+        class="back-button"
+        @click="handleBackToDefault"
+      >
+        返回
+      </el-button>
     </div>
 
     <div class="filter-section">
@@ -70,6 +77,7 @@ const devices = ref([])
 const categories = ref([])
 const loading = ref(false)
 const searchKeyword = ref('')
+const isSearchMode = ref(false)
 const selectedCategory = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -110,6 +118,16 @@ const fetchDevices = async () => {
 }
 
 const handleSearch = () => {
+  searchKeyword.value = searchKeyword.value.trim()
+  isSearchMode.value = searchKeyword.value.length > 0
+  currentPage.value = 1
+  fetchDevices()
+}
+
+const handleBackToDefault = () => {
+  searchKeyword.value = ''
+  isSearchMode.value = false
+  selectedCategory.value = ''
   currentPage.value = 1
   fetchDevices()
 }
@@ -144,9 +162,13 @@ onMounted(() => {
   margin-bottom: 20px;
   display: flex;
   justify-content: center;
+  align-items: center;
 }
 .input-with-select {
   width: 500px;
+}
+.back-button {
+  margin-left: 12px;
 }
 .filter-section {
   margin-bottom: 20px;

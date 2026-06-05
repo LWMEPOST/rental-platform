@@ -82,7 +82,7 @@ public class DeviceController {
     public Result<Device> getDetail(@PathVariable Long id) {
         Device device = deviceService.getById(id);
         if (device == null) {
-            return Result.error("Device not found");
+            return Result.error("设备不存在");
         }
         return Result.success(device);
     }

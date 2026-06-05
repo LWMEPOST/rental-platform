@@ -36,6 +36,12 @@ public class OrderController {
         return Result.success("支付成功");
     }
 
+    @PostMapping("/cancel/{id}")
+    public Result<String> cancelOrder(@PathVariable Long id) {
+        rentalOrderService.cancelOrder(id);
+        return Result.success("订单取消成功");
+    }
+
     @PostMapping("/return/{id}")
     public Result<String> returnOrder(@PathVariable Long id) {
         rentalOrderService.returnOrder(id);
@@ -83,17 +89,7 @@ public class OrderController {
     // Admin: Update Order Status (e.g., Deliver, Return, Cancel)
     @PutMapping("/admin/updateStatus")
     public Result<String> updateStatus(@RequestBody UpdateStatusRequest request) {
-        RentalOrder order = rentalOrderService.getById(request.getOrderId());
-        if (order == null) return Result.error("订单不存在");
-        
-        order.setStatus(request.getStatus());
-        if (request.getStatus() == 2) { // Renting / Delivered
-             order.setDeliveryTime(LocalDateTime.now());
-        } else if (request.getStatus() == 4) { // Finished / Returned
-             order.setReturnTime(LocalDateTime.now());
-        }
-        
-        rentalOrderService.updateById(order);
+        rentalOrderService.updateStatusByAdmin(request.getOrderId(), request.getStatus());
         return Result.success("状态更新成功");
     }
 
